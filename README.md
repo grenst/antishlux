@@ -1,4 +1,4 @@
-# Python Telegram Bot
+# Python Telegram Bot "AntiShlux" (beta)
 
 **Language:** [English](#english-version) | [Українська](#ukrainian-version)
 
