@@ -1,132 +1,101 @@
-# Telegram Bot на Python
+# Python Telegram Bot
 
-Основа для Telegram-бота с использованием python-telegram-bot (версии 20+) и asyncio.
+**Language:** [English](#english-version) | [Українська](#ukrainian-version)
 
-## Структура проекта
+<a id="english-version"></a>
+## English Version
+
+Base for a Telegram bot using python-telegram-bot (v20+) and asyncio.
+
+### Project Structure
 
 ```
 .
-├── main.py           # Точка входа, запуск бота
-├── config.py         # Загрузка переменных окружения
-├── handlers.py       # Обработчики сообщений и команд
-├── db.py            # Модуль для работы с PostgreSQL (заготовка)
-├── requirements.txt  # Зависимости проекта
-├── .env.example     # Пример файла с переменными окружения
-└── README.md        # Этот файл
+├── main.py           # Entry point, bot startup
+├── config.py         # Environment variables loader
+├── handlers.py       # Message and command handlers
+├── db.py            # PostgreSQL module (skeleton)
+├── requirements.txt  # Project dependencies
+├── .env.example     # Environment variables template
+└── README.md        # This file
 ```
 
-## Установка и настройка
+### Installation & Setup
 
-1. **Установите зависимости:**
+1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Создайте файл `.env`:**
+2. **Create `.env` file:**
    ```bash
    cp .env.example .env
    ```
 
-3. **Заполните переменные окружения в файле `.env`:**
+3. **Configure environment variables:**
    ```
-   TELEGRAM_BOT_TOKEN=your_bot_token_here
-   ADMIN_TELEGRAM_ID=your_admin_id_here
+   TELEGRAM_BOT_TOKEN=ваш_токен_бота
+   ADMIN_TELEGRAM_ID=ваш_telegram_id
+   GEMINI_API_KEY=AIzaSyB...
+   DB_HOST=your_db_host
+   DB_PORT=5432
+   DB_USER=your_db_user
+   DB_PASSWORD=your_db_password
+   DB_NAME=your_db_name
    ```
 
-   Где:
-   - `TELEGRAM_BOT_TOKEN` - токен вашего бота от @BotFather
-   - `ADMIN_TELEGRAM_ID` - ваш Telegram ID для получения уведомлений об ошибках
-   - `DB_HOST` - хост PostgreSQL (по умолчанию localhost)
-   - `DB_PORT` - порт PostgreSQL (по умолчанию 5432)
-   - `DB_USER` - пользователь базы данных
-   - `DB_PASSWORD` - пароль базы данных
-   - `DB_NAME` - имя базы данных
+### Features
 
-## Запуск
+- Async startup/shutdown
+- PostgreSQL integration
+- User verification system
+- Admin error notifications
 
-```bash
-python main.py
+<a id="ukrainian-version"></a>
+## Українська Версія
+
+База для Telegram-бота з використанням python-telegram-bot (версії 20+) та asyncio.
+
+### Структура проекту
+
+```
+.
+├── main.py           # Точка входу, запуск бота
+├── config.py         # Завантаження змінних оточення
+├── handlers.py       # Обробники повідомлень та команд
+├── db.py            # Модуль для роботи з PostgreSQL (заготівля)
+├── requirements.txt  # Залежності проекту
+├── .env.example     # Приклад файлу зі змінними оточення
+└── README.md        # Цей файл
 ```
 
-Для остановки бота используйте `Ctrl+C`.
+### Встановлення та налаштування
 
-## Функциональность
+1. **Встановіть залежності:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Реализованные команды:
-- `/start` - приветствие и информация о боте
+2. **Створіть файл `.env`:**
+   ```bash
+   cp .env.example .env
+   ```
 
-### Реализованные обработчики:
-- **Система верификации новых участников** с ограничением прав и кнопкой подтверждения
-- Автоматическое удаление пользователей при неподтверждении в течение 2 минут
-- Приветствие новых участников в групповых чатах (резервный метод)
-- Обработка инлайн-кнопок для верификации
-- Обработка неизвестных команд
-- Обработка ошибок с уведомлением администратора
+3. **Налаштуйте змінні оточення:**
+   ```
+   TELEGRAM_BOT_TOKEN=ваш_токен_бота
+   ADMIN_TELEGRAM_ID=ваш_telegram_id
+   GEMINI_API_KEY=AIzaSyB...
+   DB_HOST=your_db_host
+   DB_PORT=5432
+   DB_USER=your_db_user
+   DB_PASSWORD=your_db_password
+   DB_NAME=your_db_name
+   ```
 
-### Возможности:
-- Асинхронный запуск и остановка
-- Логирование в файл и консоль
-- Graceful shutdown при получении сигналов SIGINT/SIGTERM
-- Автоматическое уведомление администратора об ошибках
+### Можливості
 
-## Разработка
-
-### Добавление новых команд:
-1. Создайте обработчик в `handlers.py`
-2. Зарегистрируйте его в `main.py` в методе `setup_application()`
-
-### Добавление новых переменных окружения:
-1. Добавьте переменную в `config.py`
-2. Обновите `.env.example`
-
-## Логи
-
-Логи сохраняются в файл `bot.log` и выводятся в консоль.
-
-## База данных
-
-### Структура таблиц:
-
-**users:**
-- `user_id` (BIGINT, PRIMARY KEY) - Telegram ID пользователя
-- `username` (TEXT) - имя пользователя в Telegram
-- `first_name` (TEXT) - имя пользователя
-- `join_date` (TIMESTAMP WITH TIME ZONE) - дата присоединения
-- `is_approved` (BOOLEAN) - статус одобрения
-- `spam_reports` (INTEGER) - количество жалоб на спам
-
-**messages:**
-- `message_id` (SERIAL, PRIMARY KEY) - ID сообщения
-- `user_id` (BIGINT, REFERENCES users) - ID пользователя
-- `message_text` (TEXT) - текст сообщения
-- `is_spam` (BOOLEAN) - отмечено ли как спам
-- `timestamp` (TIMESTAMP WITH TIME ZONE) - время сообщения
-
-### Реализованные функции базы данных:
-- `get_pool()` - создание пула соединений
-- `init_db()` - инициализация таблиц
-- `add_new_user()` - добавление нового пользователя
-- `get_user()` - получение информации о пользователе
-- `approve_user()` - одобрение пользователя
-- `log_message()` - логирование сообщений
-- `increment_spam_reports()` - увеличение счетчика спама
-- `get_user_stats()` - статистика пользователей
-
-## Тестирование
-
-Запуск тестов:
-```bash
-pytest test_db.py -v
-```
-
-Тесты используют моки для имитации работы с базой данных и проверяют:
-- Корректность работы функций
-- Обработку ошибок
-- Интеграционные сценарии
-
-## Следующие шаги
-
-- Добавление команд администратора
-- Интеграция с LLM для анализа спама
-- Расширение функций модерации
-- Добавление системы уведомлений
+- Асинхронний запуск/зупинка
+- Інтеграція з PostgreSQL
+- Система верифікації користувачів
+- Сповіщення про помилки для адміністратора
