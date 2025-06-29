@@ -376,8 +376,13 @@ async def message_filter_handler(update: Update, context: ContextTypes.DEFAULT_T
         
         user_data = await db.get_user(pool, user.id)
         
+        # If user is not in database, they haven't been processed yet
+        if not user_data:
+            logger.debug(f"User {user.id} not found in database, allowing message")
+            return
+
         # Level 0: Verification Check
-        if not user_data or not user_data['is_approved']:
+        if not user_data['is_approved']:
             try:
                 await context.bot.delete_message(
                     chat_id=chat.id,

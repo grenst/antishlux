@@ -628,3 +628,149 @@ class TestMessageFilter:
 if __name__ == "__main__":
     # Run tests
     pytest.main([__file__, "-v"])
+
+
+class TestLLMMessageFilter:
+    """Test class for LLM-based message filtering functionality."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock context."""
+        context = AsyncMock(spec=ContextTypes.DEFAULT_TYPE)
+        context.bot = AsyncMock()
+        context.application = MagicMock()
+        context.application.bot_data = {'db_pool': AsyncMock()}
+        return context
+
+    @pytest.fixture
+    def mock_user(self):
+        """Create a mock user."""
+        user = MagicMock(spec=User)
+        user.id = 123456789
+        user.username = "testuser"
+        user.first_name = "Test"
+        user.is_bot = False
+        return user
+
+    @pytest.fixture
+    def mock_chat(self):
+        """Create a mock chat."""
+        chat = MagicMock(spec=Chat)
+        chat.id = -1001234567890
+        chat.type = "supergroup"
+        return chat
+
+    @pytest.fixture
+    def mock_message(self, mock_user, mock_chat):
+        """Create a mock message."""
+        message = MagicMock(spec=Message)
+        message.message_id = 12345
+        message.text = "Hello, this is a test message"
+        message.photo = None
+        message.video = None
+        message.document = None
+        message.audio = None
+        
+        update = MagicMock(spec=Update)
+        update.message = message
+        update.effective_user = mock_user
+        update.effective_chat = mock_chat
+        
+        return update
+
+    @pytest.fixture
+    def approved_user_data(self, mock_user):
+        """Return data for an approved user."""
+        return {
+            'user_id': mock_user.id,
+            'username': mock_user.username,
+            'first_name': mock_user.first_name,
+            'is_approved': True,
+            'spam_reports': 0
+        }
+
+    @pytest.mark.asyncio
+    async def test_message_with_link_triggers_llm_analysis(
+        self, mock_message, mock_context, approved_user_data
+    ):
+        """Test that a message with a link from an approved user triggers LLM analysis."""
+        mock_message.message.text = "Check out this link: https://example.com"
+        
+        with patch('handlers.db.get_user', new_callable=AsyncMock) as mock_get_user:
+            with patch('handlers.llm_client.analyze_text', new_callable=AsyncMock) as mock_analyze_text:
+                mock_get_user.return_value = approved_user_data
+                mock_analyze_text.return_value = {"is_spam": False, "confidence": 0.1, "reason": ""}
+
+                await message_filter_handler(mock_message, mock_context)
+
+                mock_analyze_text.assert_called_once_with(mock_message.message.text)
+
+    @pytest.mark.asyncio
+    async def test_message_without_link_skips_llm_analysis(
+        self, mock_message, mock_context, approved_user_data
+    ):
+        """Test that a message without a link from an approved user does not trigger LLM analysis."""
+        mock_message.message.text = "This is a normal message without links."
+        
+        with patch('handlers.db.get_user', new_callable=AsyncMock) as mock_get_user:
+            with patch('handlers.llm_client.analyze_text', new_callable=AsyncMock) as mock_analyze_text:
+                mock_get_user.return_value = approved_user_data
+
+                await message_filter_handler(mock_message, mock_context)
+
+                mock_analyze_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_llm_detects_high_confidence_spam_and_bans_user(
+        self, mock_message, mock_context, approved_user_data, mock_user, mock_chat
+    ):
+        """Test that a high-confidence spam message results in a ban."""
+        mock_message.message.text = "Super secret content here: https://spam.com"
+        
+        with patch('handlers.db.get_user', new_callable=AsyncMock) as mock_get_user:
+            with patch('handlers.llm_client.analyze_text', new_callable=AsyncMock) as mock_analyze_text:
+                mock_get_user.return_value = approved_user_data
+                mock_analyze_text.return_value = {"is_spam": True, "confidence": 0.9, "reason": "High-risk spam"}
+
+                await message_filter_handler(mock_message, mock_context)
+
+                mock_context.bot.delete_message.assert_called_once_with(chat_id=mock_chat.id, message_id=mock_message.message.message_id)
+                mock_context.bot.ban_chat_member.assert_called_once_with(chat_id=mock_chat.id, user_id=mock_user.id)
+                mock_context.bot.send_message.assert_called_once() # Admin notification
+
+    @pytest.mark.asyncio
+    async def test_llm_detects_medium_confidence_spam_and_reports(
+        self, mock_message, mock_context, approved_user_data, mock_chat
+    ):
+        """Test that a medium-confidence spam message is deleted and reported."""
+        mock_message.message.text = "Maybe spammy link: https://maybe-spam.com"
+        
+        with patch('handlers.db.get_user', new_callable=AsyncMock) as mock_get_user:
+            with patch('handlers.llm_client.analyze_text', new_callable=AsyncMock) as mock_analyze_text:
+                mock_get_user.return_value = approved_user_data
+                mock_analyze_text.return_value = {"is_spam": True, "confidence": 0.7, "reason": "Medium-risk spam"}
+
+                await message_filter_handler(mock_message, mock_context)
+
+                mock_context.bot.delete_message.assert_called_once_with(chat_id=mock_chat.id, message_id=mock_message.message.message_id)
+                mock_context.bot.ban_chat_member.assert_not_called()
+                mock_context.bot.send_message.assert_called_once() # Admin report
+
+    @pytest.mark.asyncio
+    async def test_llm_detects_non_spam_and_takes_no_action(
+        self, mock_message, mock_context, approved_user_data
+    ):
+        """Test that a non-spam message with a link is ignored."""
+        mock_message.message.text = "Here is a normal link: https://google.com"
+        
+        with patch('handlers.db.get_user', new_callable=AsyncMock) as mock_get_user:
+            with patch('handlers.llm_client.analyze_text', new_callable=AsyncMock) as mock_analyze_text:
+                mock_get_user.return_value = approved_user_data
+                mock_analyze_text.return_value = {"is_spam": False, "confidence": 0.1, "reason": "Not spam"}
+
+                await message_filter_handler(mock_message, mock_context)
+
+                mock_context.bot.delete_message.assert_not_called()
+                mock_context.bot.ban_chat_member.assert_not_called()
+                mock_context.bot.send_message.assert_not_called()
+
