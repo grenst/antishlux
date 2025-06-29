@@ -12,6 +12,7 @@ load_dotenv()
 # Bot configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Validate required environment variables
 if not TELEGRAM_BOT_TOKEN:
@@ -48,3 +49,36 @@ try:
     DB_PORT = int(DB_PORT)
 except ValueError:
     raise ValueError("DB_PORT must be a valid integer")
+
+# Anti-spam configuration
+STOP_WORDS = [
+    "приват",
+    "onlyfans", 
+    "горячие фото",
+    "сливы",
+    "знакомства",
+    "интим",
+    "крипто",
+    "майнинг",
+    "заработок",
+    "инвестиции",
+    "продам",
+    "куплю",
+    "реклама",
+    "бизнес",
+    "млм",
+    "пирамида",
+    "схема",
+    "деньги быстро",
+    "легкие деньги",
+    "без вложений",
+    "телеграм канал",
+    "подписывайся",
+    "переходи по ссылке",
+    "жми на ссылку",
+    "регистрируйся",
+    "скачай приложение"
+]
+
+# Convert to lowercase for case-insensitive matching
+STOP_WORDS = [word.lower() for word in STOP_WORDS]

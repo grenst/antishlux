@@ -13,12 +13,22 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
+    ChatMemberHandler,
     filters,
     ContextTypes
 )
 
 from config import TELEGRAM_BOT_TOKEN
-from handlers import start_command, new_chat_member, error_handler, unknown_command
+from handlers import (
+    start_command, 
+    new_chat_member, 
+    error_handler, 
+    unknown_command,
+    chat_member_handler,
+    verification_callback,
+    message_filter_handler
+)
 from db import get_pool, init_db
 
 # Configure logging
@@ -53,10 +63,27 @@ class TelegramBot:
         # Build application
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         
+        # Store db_pool in bot_data for handlers to access
+        self.application.bot_data['db_pool'] = self.db_pool
+        
         # Add command handlers
         self.application.add_handler(CommandHandler("start", start_command))
         
-        # Add message handlers
+        # Add chat member handler for new joins (using ChatMemberHandler)
+        self.application.add_handler(ChatMemberHandler(chat_member_handler))
+        
+        # Add callback query handler for verification buttons
+        self.application.add_handler(CallbackQueryHandler(verification_callback))
+        
+        # Add message filter handler for text and media messages
+        self.application.add_handler(
+            MessageHandler(
+                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.DOCUMENT | filters.AUDIO, 
+                message_filter_handler
+            )
+        )
+        
+        # Add message handlers (fallback for older method)
         self.application.add_handler(
             MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member)
         )
