@@ -19,6 +19,7 @@ from telegram.ext import (
 
 from config import TELEGRAM_BOT_TOKEN
 from handlers import start_command, new_chat_member, error_handler, unknown_command
+from db import get_pool, init_db
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +41,7 @@ class TelegramBot:
     
     def __init__(self):
         self.application: Application = None
+        self.db_pool = None
         self._shutdown_event = asyncio.Event()
     
     async def setup_application(self) -> None:
@@ -109,6 +111,11 @@ class TelegramBot:
                 # Stop application
                 await self.application.stop()
                 await self.application.shutdown()
+            
+            # Close database pool
+            if self.db_pool:
+                await self.db_pool.close()
+                logger.info("Database pool closed")
                 
             logger.info("Bot stopped successfully")
             
@@ -139,6 +146,14 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
+        # Initialize database
+        logger.info("Initializing database connection...")
+        db_pool = await get_pool()
+        await init_db(db_pool)
+        
+        # Store db_pool in bot for later use
+        bot.db_pool = db_pool
+        
         # Setup and start the bot
         await bot.setup_application()
         await bot.start()

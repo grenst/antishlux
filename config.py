@@ -25,3 +25,26 @@ try:
     ADMIN_TELEGRAM_ID = int(ADMIN_TELEGRAM_ID)
 except ValueError:
     raise ValueError("ADMIN_TELEGRAM_ID must be a valid integer")
+
+# Database configuration
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_NAME = os.getenv('DB_NAME')
+
+# Validate database configuration
+if not DB_USER:
+    raise ValueError("DB_USER environment variable is required")
+
+if not DB_PASSWORD:
+    raise ValueError("DB_PASSWORD environment variable is required")
+
+if not DB_NAME:
+    raise ValueError("DB_NAME environment variable is required")
+
+# Convert DB_PORT to integer
+try:
+    DB_PORT = int(DB_PORT)
+except ValueError:
+    raise ValueError("DB_PORT must be a valid integer")
