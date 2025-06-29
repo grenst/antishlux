@@ -1,0 +1,50 @@
+name: Перевірка та Тестування
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9"]
+
+    steps:
+      # 1. Клонуємо репозиторій
+      - name: Клонування репозиторію
+        uses: actions/checkout@v4
+
+      # 2. Налаштовуємо оточення Python
+      - name: Налаштування Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 3. Встановлюємо залежності
+      - name: Встановлення залежностей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8  # Встановлюємо лінтер flake8
+
+      # 4. Перевіряємо код лінтером
+      - name: Перевірка коду лінтером flake8
+        run: |
+          # Зупинити збірку, якщо є помилки Python, але пропустити деякі попередження.
+          # --count — показати загальну кількість помилок
+          # --select=E9,F63,F7,F82 — вибрати конкретні помилки для показу
+          # --show-source — показати вихідний код з помилкою
+          # --statistics — порахувати кількість кожної помилки
+          flake8. --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Вийти з помилкою, якщо є будь-які попередження, крім перерахованих.
+          # --exit-zero використовується для більш суворої перевірки.
+          flake8. --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      # 5. Запускаємо тести
+      - name: Тестування за допомогою pytest
+        run: |
+          pytest
