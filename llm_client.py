@@ -66,6 +66,54 @@ class LLMClient:
                 "reason": f"Ошибка при обращении к API: {e}"
             }
 
+    async def analyze_profile_picture(self, photo_bytes: bytes) -> dict:
+        """
+        Analyzes a user's profile picture for authenticity.
+
+        Args:
+            photo_bytes: The image file in bytes.
+
+        Returns:
+            A dictionary with the analysis result.
+        """
+        try:
+            image_part = {
+                "mime_type": "image/jpeg",
+                "data": photo_bytes
+            }
+            prompt = """
+Ты — эксперт по кибербезопасности, анализирующий подлинность профилей в социальных сетях. Проанализируй это изображение профиля и оцени вероятность того, что это сгенерированное ИИ лицо (дипфейк) или украденная стоковая фотография. Ищи артефакты генерации: асимметрию, странное освещение, неестественные детали фона, несоответствия в отражениях.
+
+Ответь в формате JSON:
+{
+  "is_fake": true/false,
+  "confidence": float (от 0.0 до 1.0),
+  "reason": "Краткое объяснение на русском языке, почему ты считаешь изображение поддельным или настоящим."
+}
+"""
+            
+            model = genai.GenerativeModel('gemini-1.5-pro-latest')
+            response = await model.generate_content_async([prompt, image_part])
+
+            json_response_text = response.text.strip()
+            if json_response_text.startswith("```json"):
+                json_response_text = json_response_text[7:-3].strip()
+
+            try:
+                return json.loads(json_response_text)
+            except json.JSONDecodeError:
+                return {
+                    "is_fake": True,
+                    "confidence": 1.0,
+                    "reason": "Ошибка: Не удалось декодировать JSON из ответа API."
+                }
+        except Exception as e:
+            return {
+                "is_fake": True,
+                "confidence": 1.0,
+                "reason": f"Ошибка при обращении к API: {e}"
+            }
+
 if __name__ == '__main__':
     async def main():
         client = LLMClient()

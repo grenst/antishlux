@@ -124,7 +124,27 @@ async def chat_member_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                     user.first_name
                 )
                 logger.info(f"Added user {user.id} to database")
-            
+
+            # Analyze profile picture
+            profile_photos = await user.get_profile_photos()
+            if profile_photos and profile_photos.photos:
+                photo = profile_photos.photos[-1][0] # Get the largest photo
+                photo_file = await photo.get_file()
+                photo_bytes = await photo_file.download_as_bytearray()
+
+                analysis_result = await llm_client.analyze_profile_picture(bytes(photo_bytes))
+                if analysis_result.get("is_fake") and analysis_result.get("confidence", 0) > 0.85:
+                    report_text = (
+                        f"🚨 **Обнаружен поддельный аватар** 🚨\n\n"
+                        f"**Пользователь:** {user.first_name} (`{user.id}`)\n"
+                        f"**Причина от LLM:** {analysis_result.get('reason', 'N/A')}"
+                    )
+                    await context.bot.send_message(
+                        chat_id=ADMIN_TELEGRAM_ID,
+                        text=report_text,
+                        parse_mode='Markdown'
+                    )
+
             # Restrict user permissions
             restricted_permissions = ChatPermissions(
                 can_send_messages=True,

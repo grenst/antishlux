@@ -45,11 +45,12 @@ class TestChatMemberHandler:
     @pytest.fixture
     def mock_user(self):
         """Create a mock user."""
-        user = MagicMock(spec=User)
+        user = AsyncMock(spec=User)
         user.id = 123456789
         user.username = "testuser"
         user.first_name = "Test"
         user.is_bot = False
+        user.get_profile_photos.return_value = None
         return user
 
     @pytest.fixture
@@ -375,7 +376,7 @@ class TestMessageFilter:
     @pytest.fixture
     def mock_user(self):
         """Create a mock user."""
-        user = MagicMock(spec=User)
+        user = AsyncMock(spec=User)
         user.id = 123456789
         user.username = "testuser"
         user.first_name = "Test"
@@ -630,6 +631,119 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
+class TestProfilePictureAnalysis:
+    """Test class for profile picture analysis functionality."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock context."""
+        context = AsyncMock(spec=ContextTypes.DEFAULT_TYPE)
+        context.bot = AsyncMock()
+        context.application = MagicMock()
+        context.application.bot_data = {'db_pool': AsyncMock()}
+        return context
+
+    @pytest.fixture
+    def mock_user_with_photo(self):
+        """Create a mock user with a profile photo."""
+        user = AsyncMock(spec=User)
+        user.id = 123456789
+        user.username = "testuser"
+        user.first_name = "Test"
+        user.is_bot = False
+
+        # Mock the async call chain for getting a profile photo
+        mock_profile_photos = MagicMock()
+        mock_photo_size = AsyncMock()
+        mock_file = AsyncMock()
+        
+        mock_file.download_as_bytearray.return_value = bytearray(b"fake_image_bytes")
+        mock_photo_size.get_file.return_value = mock_file
+        mock_profile_photos.photos = [[mock_photo_size]]
+        user.get_profile_photos.return_value = mock_profile_photos
+        
+        return user
+
+    @pytest.fixture
+    def mock_user_without_photo(self):
+        """Create a mock user without a profile photo."""
+        user = AsyncMock(spec=User)
+        user.id = 987654321
+        user.username = "no_photo_user"
+        user.first_name = "NoPhoto"
+        user.is_bot = False
+        user.get_profile_photos.return_value = None
+        return user
+
+    @pytest.mark.asyncio
+    async def test_fake_profile_picture_sends_admin_report(
+        self, mock_context, mock_user_with_photo
+    ):
+        """Test that a fake profile picture triggers an admin report."""
+        with patch('handlers.llm_client.analyze_profile_picture', new_callable=AsyncMock) as mock_analyze_pic:
+            with patch('handlers.db.add_new_user', new_callable=AsyncMock):
+                with patch('handlers.asyncio.create_task'): # Mock timeout task
+            
+                    mock_analyze_pic.return_value = {"is_fake": True, "confidence": 0.9, "reason": "AI artifact detected"}
+
+                    # Create a mock update
+                    update = MagicMock()
+                    update.chat_member = MagicMock()
+                    update.chat_member.new_chat_member.user = mock_user_with_photo
+                    update.chat_member.chat.id = -1001234567890
+                    update.chat_member.old_chat_member.status = ChatMember.LEFT
+                    update.chat_member.new_chat_member.status = ChatMember.MEMBER
+
+                    await chat_member_handler(update, mock_context)
+
+                    mock_analyze_pic.assert_called_once()
+                    assert mock_context.bot.send_message.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_real_profile_picture_no_action(
+        self, mock_context, mock_user_with_photo
+    ):
+        """Test that a real profile picture does not trigger any action."""
+        with patch('handlers.llm_client.analyze_profile_picture', new_callable=AsyncMock) as mock_analyze_pic:
+            with patch('handlers.db.add_new_user', new_callable=AsyncMock):
+                with patch('handlers.asyncio.create_task'):
+
+                    mock_analyze_pic.return_value = {"is_fake": False, "confidence": 0.1, "reason": "Looks real"}
+
+                    update = MagicMock()
+                    update.chat_member = MagicMock()
+                    update.chat_member.new_chat_member.user = mock_user_with_photo
+                    update.chat_member.chat.id = -1001234567890
+                    update.chat_member.old_chat_member.status = ChatMember.LEFT
+                    update.chat_member.new_chat_member.status = ChatMember.MEMBER
+
+                    await chat_member_handler(update, mock_context)
+
+                    mock_analyze_pic.assert_called_once()
+                    # The initial verification message should be sent, but no admin report
+                    assert mock_context.bot.send_message.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_no_profile_picture_skips_analysis(
+        self, mock_context, mock_user_without_photo
+    ):
+        """Test that a user with no profile picture skips the analysis."""
+        with patch('handlers.llm_client.analyze_profile_picture', new_callable=AsyncMock) as mock_analyze_pic:
+            with patch('handlers.db.add_new_user', new_callable=AsyncMock):
+                with patch('handlers.asyncio.create_task'):
+
+                    update = MagicMock()
+                    update.chat_member = MagicMock()
+                    update.chat_member.new_chat_member.user = mock_user_without_photo
+                    update.chat_member.chat.id = -1001234567890
+                    update.chat_member.old_chat_member.status = ChatMember.LEFT
+                    update.chat_member.new_chat_member.status = ChatMember.MEMBER
+
+                    await chat_member_handler(update, mock_context)
+
+                    mock_analyze_pic.assert_not_called()
+
+
 class TestLLMMessageFilter:
     """Test class for LLM-based message filtering functionality."""
 
@@ -645,7 +759,7 @@ class TestLLMMessageFilter:
     @pytest.fixture
     def mock_user(self):
         """Create a mock user."""
-        user = MagicMock(spec=User)
+        user = AsyncMock(spec=User)
         user.id = 123456789
         user.username = "testuser"
         user.first_name = "Test"
