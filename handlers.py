@@ -16,12 +16,17 @@ from telegram import (
 from telegram.ext import ContextTypes
 from config import ADMIN_TELEGRAM_ID, STOP_WORDS
 import db
+from llm_client import LLMClient
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 # Store pending verifications with timeout tasks
 pending_verifications = {}
+
+# Initialize LLM Client
+llm_client = LLMClient()
+
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -371,14 +376,8 @@ async def message_filter_handler(update: Update, context: ContextTypes.DEFAULT_T
         
         user_data = await db.get_user(pool, user.id)
         
-        # If user is not in database, they haven't been processed yet
-        if not user_data:
-            logger.debug(f"User {user.id} not found in database, allowing message")
-            return
-        
-        # Check if user is approved
-        if not user_data['is_approved']:
-            # Delete message from unapproved user
+        # Level 0: Verification Check
+        if not user_data or not user_data['is_approved']:
             try:
                 await context.bot.delete_message(
                     chat_id=chat.id,
@@ -393,11 +392,8 @@ async def message_filter_handler(update: Update, context: ContextTypes.DEFAULT_T
         if message.text:
             message_text = message.text.lower()
             
-            # Check for stop words
-            found_stop_words = []
-            for stop_word in STOP_WORDS:
-                if stop_word in message_text:
-                    found_stop_words.append(stop_word)
+            # Level 1: Stop-Word Check
+            found_stop_words = [word for word in STOP_WORDS if word in message_text]
             
             if found_stop_words:
                 # Message contains spam - delete it
@@ -465,6 +461,51 @@ async def message_filter_handler(update: Update, context: ContextTypes.DEFAULT_T
                         
                     except Exception as e:
                         logger.error(f"Failed to send warning to user {user.id}: {e}")
+                return
+
+            # Level 2: LLM Analysis for messages with links
+            if 'http' in message_text or 't.me' in message_text:
+                logger.info(f"Message from {user.id} contains a link, analyzing with LLM...")
+                analysis_result = await llm_client.analyze_text(message.text)
+
+                is_spam = analysis_result.get('is_spam', False)
+                confidence = analysis_result.get('confidence', 0.0)
+                reason = analysis_result.get('reason', 'Причина не указана.')
+
+                if is_spam:
+                    if confidence > 0.8:
+                        # Ban user
+                        try:
+                            await context.bot.delete_message(chat_id=chat.id, message_id=message.message_id)
+                            await context.bot.ban_chat_member(chat_id=chat.id, user_id=user.id)
+                            logger.info(f"Banned user {user.id} based on LLM analysis (confidence: {confidence})")
+                            await context.bot.send_message(
+                                chat_id=ADMIN_TELEGRAM_ID,
+                                text=f"🚫 Пользователь {user.first_name} ({user.id}) был забанен по результатам LLM-анализа.\n"
+                                     f"Причина: {reason}\n"
+                                     f"Сообщение: {message.text}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to ban user {user.id} based on LLM analysis: {e}")
+                    elif 0.6 <= confidence <= 0.8:
+                        # Delete message and report to admin
+                        try:
+                            await context.bot.delete_message(chat_id=chat.id, message_id=message.message_id)
+                            logger.info(f"Deleted message from {user.id} and reporting to admin based on LLM analysis (confidence: {confidence})")
+                            report_text = (
+                                f"⚠️ **Подозрительное сообщение для проверки** ⚠️\n\n"
+                                f"**Пользователь:** {user.first_name} (`{user.id}`)\n"
+                                f"**Сообщение:**\n```\n{message.text}\n```\n"
+                                f"**Причина от LLM:** {reason}\n"
+                                f"**Уверенность:** {confidence}"
+                            )
+                            await context.bot.send_message(
+                                chat_id=ADMIN_TELEGRAM_ID,
+                                text=report_text,
+                                parse_mode='Markdown'
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to report suspicious message from {user.id}: {e}")
         else:
             # For non-text messages from approved users, just log them
             if message.photo or message.video or message.document or message.audio:
