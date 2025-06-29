@@ -1,4 +1,5 @@
 # Python Telegram Bot "AntiShlux" (beta)
+developed by [grenst](https://github.com/grenst)
 
 **Language:** [English](#english-version) | [Українська](#ukrainian-version)
 
