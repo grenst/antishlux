@@ -78,7 +78,7 @@ class TelegramBot:
         # Add message filter handler for text and media messages
         self.application.add_handler(
             MessageHandler(
-                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.DOCUMENT | filters.AUDIO, 
+                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ATTACHMENT | filters.AUDIO,
                 message_filter_handler
             )
         )
